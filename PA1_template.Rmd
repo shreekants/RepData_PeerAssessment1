@@ -7,19 +7,125 @@ output:
 
 
 ## Loading and preprocessing the data
+```{r  echo=TRUE}
+activity <- read.csv("activity.csv")
 
-
-
+#ignore NA values
+activityC <- activity[complete.cases(activity),]
+```
 ## What is mean total number of steps taken per day?
 
+```{r echo=TRUE}
+#calculate the number of steps on each day
+dailySteps <- aggregate(activityC$steps, by=list(activityC$date),FUN=sum)
 
+#specifiy the column names
+colnames(dailySteps) <- c("Date","steps")
+
+#plot the histogram
+hist(dailySteps$steps,breaks=53,plot=TRUE,xlab="Daily Steps", main=paste("Histogram of number of steps on each day"))
+
+#calculate mean of number of steps taken each day
+dailyStepsMean <- aggregate(activityC$steps, by=list(activityC$date),FUN=mean, na.action = na.omit)
+colnames(dailyStepsMean) <- c("Date","Mean")
+dailyStepsMean$Mean = round(dailyStepsMean$Mean)
+
+#calculate mean of number of steps taken each day
+dailyStepsMedian <- aggregate(activityC$steps, by=list(activityC$date), FUN=median)
+colnames(dailyStepsMedian) <- c("Date","Median")
+dailyStepsMedian = round(dailyStepsMedian$Median)
+
+#Merge mean and median in one table
+MeanAndMedianSteps <- merge(dailyStepsMean,dailyStepsMedian)
+
+#report mean and median
+print(MeanAndMedianSteps, type="html")
+```
 
 ## What is the average daily activity pattern?
+```{r echo=TRUE}
+#calculate average of number of steps taken by time interval (accross all days)
+dailyStepsIntervalMean <- aggregate(activityC$steps, by=list(activityC$interval),FUN=mean, na.action = na.omit)
 
+colnames(dailyStepsIntervalMean) <- c("TimeInterval","Steps")
 
+plot(dailyStepsIntervalMean$TimeInterval,dailyStepsIntervalMean$Steps, main="Time series of the 5-minute interval and average number of steps taken", xlab = "Time Interval", ylab="Steps taken (averaged across all days)", type="l")
+ 
+```
+The above time-series plot shows that maximum number of steps are taken in the morning around 0800 to 0900 hours 
 
 ## Imputing missing values
+```{r}
+#calculate the number of rows in the original dataset
+RowswithNa <- nrow(activity)
+RowswithoutNa <- nrow(activityC)  # activityC is a dataset with complete cases.
+
+#calculate the difference in rows
+DiffinRows <- RowswithNa - RowswithoutNa
+```
+
+The total number of missing values in the dataset (i.e. the total number of rows with NAs are `r DiffinRows`.
+
+```{r}
+#make a copy of the original dataset
+ActivityFillNA <- activity
+
+#for each interval that shows NA as number of steps taken, fill it with average steps taken at that interval (obviously rounded!)
+for (val in 1:nrow(ActivityFillNA))
+{
+    if(is.na(ActivityFillNA[val,1]))
+    {
+        stepsValue = subset(dailyStepsIntervalMean, TimeInterval == ActivityFillNA[val,3])
+        ActivityFillNA[val,1] = round(stepsValue$Steps,digits=0)
+    }
+}
+
+```
+## plot the histogram using imputed data set
+
+```{r}
+
+#calculate the number of steps on each day using new dataset
+dailyStepsNew <- aggregate(ActivityFillNA$steps, by=list(ActivityFillNA$date),FUN=sum)
+
+#specifiy the column names
+colnames(dailyStepsNew) <- c("Date","steps")
+
+#plot the histogram
+hist(dailyStepsNew$steps,breaks=53,plot=TRUE,xlab="Daily Steps", main=paste("Histogram of number of steps on each day"))
 
 
+#calculate average of number of steps taken by time interval (accross all days)
+dailyStepsIntervalMeanIm <- aggregate(ActivityFillNA$steps, by=list(ActivityFillNA$interval),FUN=mean)
+
+colnames(dailyStepsIntervalMeanIm) <- c("TimeInterval","Steps")
+
+#plot the time series across all days using imputed data set
+plot(dailyStepsIntervalMeanIm$TimeInterval,dailyStepsIntervalMeanIm$Steps, main="Time series using imputed data set", xlab = "Time Interval", ylab="Steps taken (averaged across all days)", type="l")
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+#add weekday or weekend days factor to the data set
+ActivityFillNA$wdays <- as.factor(ifelse(weekdays(as.Date(ActivityFillNA$date)) %in% c("Saturday","Sunday"),"Weekend","Weekday"))
+
+#calculate average of number of steps taken by time interval (accross all weekday days or weekend days )
+dailyStepsIntervalMeanByDays <- aggregate(ActivityFillNA$steps, by=list(ActivityFillNA$interval,ActivityFillNA$wdays ),FUN=mean)
+
+
+#specifiy the column names
+colnames(dailyStepsIntervalMeanByDays) <- c("Interval","WDays","Steps")
+dailyStepsIntervalMeanByDays$Steps <- round(dailyStepsIntervalMeanByDays$Steps)
+
+library(ggplot2)
+
+#draw the plot
+g <- ggplot(dailyStepsIntervalMeanByDays, aes(Interval, Steps)) + 
+  geom_line() +
+  facet_grid(. ~ WDays)
+    labs(title="Time Interval Series Vs Steps") 
+
+print(g)
+```
